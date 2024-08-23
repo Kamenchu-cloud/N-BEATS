@@ -68,6 +68,7 @@ def trainer(snapshot_manager: SnapshotManager,
 
         if np.isnan(float(training_loss)):
             logging.error("Training stopped due to NaN loss at iteration {i}.")
+            print(f"Warning: NaN loss detected at iteration {i}. Stopping training.")
             break
 
         training_loss.backward()
@@ -82,12 +83,17 @@ def trainer(snapshot_manager: SnapshotManager,
         current_lr = optimizer.param_groups[0]["lr"]
         logging.info(f'Iteration {i}/{iterations}, Loss: {training_loss:.6f}, LR: {current_lr:.6f}, Time: {time_taken:.2f}s')
 
+        # Print progress and performance
+        if i % 10 == 0 or i == iterations:  # Print every 10 iterations and at the end
+            print(f"Iteration {i}/{iterations}, Training Loss: {float(training_loss):.4f}")
+
         snapshot_manager.register(iteration=i,
                                   training_loss=float(training_loss),
                                   validation_loss=np.nan, model=model,
                                   optimizer=optimizer)
 
     logging.info('Training completed.')
+    print("Training complete.")
     return model
 
 def __loss_fn(loss_name: str):
