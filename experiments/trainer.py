@@ -15,17 +15,23 @@
 """
 Models training logic.
 """
+import logging
+import time
 from typing import Iterator
-
 import gin
 import numpy as np
 import torch as t
 from torch import optim
-
 from common.torch.losses import smape_2_loss, mape_loss, mase_loss
 from common.torch.snapshots import SnapshotManager
 from common.torch.ops import default_device, to_tensor
 
+# Setup logger
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[
+                        logging.StreamHandler()  # You can add a FileHandler here to save logs to a file
+                    ])
 
 @gin.configurable
 def trainer(snapshot_manager: SnapshotManager,
@@ -51,7 +57,9 @@ def trainer(snapshot_manager: SnapshotManager,
     # Training Loop
     #
     snapshot_manager.enable_time_tracking()
+    logging.info(f'Starting training for {iterations} iterations...')
     for i in range(iteration + 1, iterations + 1):
+        start_time = time.time()
         model.train()
         x, x_mask, y, y_mask = map(to_tensor, next(training_set))
         optimizer.zero_grad()
@@ -59,6 +67,7 @@ def trainer(snapshot_manager: SnapshotManager,
         training_loss = training_loss_fn(x, timeseries_frequency, forecast, y, y_mask)
 
         if np.isnan(float(training_loss)):
+            logging.error("Training stopped due to NaN loss at iteration {i}.")
             break
 
         training_loss.backward()
@@ -68,12 +77,18 @@ def trainer(snapshot_manager: SnapshotManager,
         for param_group in optimizer.param_groups:
             param_group["lr"] = learning_rate * 0.5 ** (i // lr_decay_step)
 
+        # Log progress
+        time_taken = time.time() - start_time
+        current_lr = optimizer.param_groups[0]["lr"]
+        logging.info(f'Iteration {i}/{iterations}, Loss: {training_loss:.6f}, LR: {current_lr:.6f}, Time: {time_taken:.2f}s')
+
         snapshot_manager.register(iteration=i,
                                   training_loss=float(training_loss),
                                   validation_loss=np.nan, model=model,
                                   optimizer=optimizer)
-    return model
 
+    logging.info('Training completed.')
+    return model
 
 def __loss_fn(loss_name: str):
     def loss(x, freq, forecast, target, target_mask):
@@ -85,5 +100,4 @@ def __loss_fn(loss_name: str):
             return smape_2_loss(forecast, target, target_mask)
         else:
             raise Exception(f'Unknown loss function: {loss_name}')
-
     return loss
