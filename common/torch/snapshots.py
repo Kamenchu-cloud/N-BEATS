@@ -61,13 +61,12 @@ class SnapshotManager:
         :return: Iteration number.
         """
         if model is not None and os.path.isfile(self.model_snapshot_file):
-            model.load_state_dict(t.load(self.model_snapshot_file))
+            model.load_state_dict(t.load(self.model_snapshot_file, weights_only=True))
         if optimizer is not None and os.path.isfile(self.optimizer_snapshot_file):
-            optimizer.load_state_dict(t.load(self.optimizer_snapshot_file))
+            optimizer.load_state_dict(t.load(self.optimizer_snapshot_file, weights_only=True))
         iteration = t.load(self.iteration_file)['iteration'] if os.path.isfile(self.iteration_file) else 0
         if os.path.isfile(self.losses_file):
             losses = t.load(self.losses_file)
-            # remove the losses logs which were registered after the last state snapshot.
             training_losses = {k: v for k, v in losses['training'].items() if k <= iteration}
             validation_losses = {k: v for k, v in losses['validation'].items() if k <= iteration}
             self.losses = {'training': training_losses, 'validation': validation_losses}
@@ -75,6 +74,7 @@ class SnapshotManager:
         if os.path.isfile(self.time_tracking_file):
             self.time_track = t.load(self.time_tracking_file)
         return iteration
+
 
     def load_training_losses(self) -> pd.DataFrame:
         """
