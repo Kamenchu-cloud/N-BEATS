@@ -62,7 +62,17 @@ def trainer(snapshot_manager: SnapshotManager,
         start_time = time.time()
         model.train()
 
-        x, x_mask, y, y_mask = map(to_tensor, next(training_set))
+        # Fetch the next batch of data
+        batch = next(training_set)
+        
+        # Handle both masked and non-masked data
+        if len(batch) == 2:
+            x, y = map(to_tensor, batch)
+            x_mask, y_mask = None, None  # No masks provided
+        elif len(batch) == 4:
+            x, x_mask, y, y_mask = map(to_tensor, batch)
+        else:
+            raise ValueError(f"Expected 2 or 4 elements in batch, but got {len(batch)}")
 
         # Use default masks (ones) if none are provided
         if x_mask is None:
