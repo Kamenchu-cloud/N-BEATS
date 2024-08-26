@@ -17,7 +17,7 @@ Models training logic.
 """
 import logging
 import time
-from typing import Iterator
+from typing import Iterator, Optional
 import gin
 import numpy as np
 import torch as t
@@ -61,13 +61,21 @@ def trainer(snapshot_manager: SnapshotManager,
     for i in range(iteration + 1, iterations + 1):
         start_time = time.time()
         model.train()
+
         x, x_mask, y, y_mask = map(to_tensor, next(training_set))
+
+        # Use default masks (ones) if none are provided
+        if x_mask is None:
+            x_mask = t.ones_like(x)
+        if y_mask is None:
+            y_mask = t.ones_like(y)
+
         optimizer.zero_grad()
         forecast = model(x, x_mask)
         training_loss = training_loss_fn(x, timeseries_frequency, forecast, y, y_mask)
 
         if np.isnan(float(training_loss)):
-            logging.error("Training stopped due to NaN loss at iteration {i}.")
+            logging.error(f"Training stopped due to NaN loss at iteration {i}.")
             print(f"Warning: NaN loss detected at iteration {i}. Stopping training.")
             break
 
@@ -99,11 +107,11 @@ def trainer(snapshot_manager: SnapshotManager,
 def __loss_fn(loss_name: str):
     def loss(x, freq, forecast, target, target_mask):
         if loss_name == 'MAPE':
-            return mape_loss(forecast, target, target_mask)
+            return mape_loss(forecast, target, target_mask if target_mask is not None else t.ones_like(target))
         elif loss_name == 'MASE':
-            return mase_loss(x, freq, forecast, target, target_mask)
+            return mase_loss(x, freq, forecast, target, target_mask if target_mask is not None else t.ones_like(target))
         elif loss_name == 'SMAPE':
-            return smape_2_loss(forecast, target, target_mask)
+            return smape_2_loss(forecast, target, target_mask if target_mask is not None else t.ones_like(target))
         else:
             raise Exception(f'Unknown loss function: {loss_name}')
     return loss
